@@ -23,7 +23,7 @@ The backend now includes rich, colored console logs for each agent and a final w
 *Enter your research question and launch the multi-agent swarm.*
 
 ### Live Swarm Feed — Agents Running
-![Live Agents Swarm Feed](./live-agents swarm feed.png)
+![Live Agents Swarm Feed](./live-agents-swarm-feed.png)
 *Parallel Search and Reader agents reporting status in real time.*
 
 ### Research Report — Page 1
