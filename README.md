@@ -82,6 +82,53 @@ Default endpoints:
 - Backend: `http://localhost:8000`
 - Frontend: `http://localhost:5173`
 
+---
+
+## Deployment
+
+ResearchSwarm is deployed using two free platforms:
+
+- **Backend API** → [Render](https://render.com)
+- **Frontend UI** → [Vercel](https://vercel.com)
+
+### Live URLs
+- 🌐 Frontend: https://research-swarm-multi-agent-deep-res.vercel.app
+- ⚙️ Backend API: https://researchswarm-multi-agent-deep-research.onrender.com
+- 📖 API Docs: https://researchswarm-multi-agent-deep-research.onrender.com/docs
+
+### Backend — Render Setup
+
+1. Go to [render.com](https://render.com) → New → Web Service
+2. Connect your GitHub repository
+3. Render auto-detects `render.yaml` — no manual config needed
+4. Add environment variables under **Environment**:
+	- `GROQ_API_KEY` = your Groq API key
+	- `TAVILY_API_KEY` = your Tavily API key
+5. Click **Deploy**
+
+> ⚠️ Free tier spins down after 15 minutes of inactivity.
+> First request may take 30–50 seconds to wake up.
+> Open the `/health` endpoint before your demo to warm it up.
+
+### Frontend — Vercel Setup
+
+1. Go to [vercel.com](https://vercel.com) → New Project
+2. Connect your GitHub repository
+3. Set **Root Directory** to `frontend`
+4. Add environment variable:
+	- `VITE_API_URL` = your Render backend URL
+5. Click **Deploy**
+
+> Vercel auto-deploys on every push to main branch.
+
+### Environment Variables Summary
+
+| Variable | Platform | Description |
+|----------|----------|-------------|
+| `GROQ_API_KEY` | Render | Groq LLM API key |
+| `TAVILY_API_KEY` | Render | Tavily web search API key |
+| `VITE_API_URL` | Vercel | Backend API base URL |
+
 ## Optional CLI Run
 
 From repository root:
