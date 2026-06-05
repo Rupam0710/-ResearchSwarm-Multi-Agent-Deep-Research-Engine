@@ -1,10 +1,14 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import AgentProgressPanel from '../components/AgentProgressPanel'
 import InputPanel from '../components/InputPanel'
 import SwarmVisualizer from '../components/SwarmVisualizer'
 import ReportViewer from '../components/ReportViewer'
 
 const REQUEST_TIMEOUT_MS = 300000 // 5 minutes total for the entire stream
+const HEALTH_CHECK_TIMEOUT_MS = 5000
+const HEALTH_POLL_INTERVAL_MS = 5000
+const WARMUP_PROGRESS_DURATION_MS = 40000
+const WARMUP_READY_MESSAGE_MS = 1000
 const BASE_URL = import.meta.env.VITE_API_URL || ''
 
 const AGENT_STEP_INDEX = {
@@ -25,22 +29,43 @@ function Home() {
   const [progressEntries, setProgressEntries] = useState([])
   const [startedAt, setStartedAt] = useState(null)
   const [logsCollapsed, setLogsCollapsed] = useState(false)
+  const [backendStatus, setBackendStatus] = useState('sleeping')
+  const [warmupBannerVisible, setWarmupBannerVisible] = useState(false)
+  const [warmupPhase, setWarmupPhase] = useState('idle')
+  const [warmupStartedAt, setWarmupStartedAt] = useState(null)
+  const [warmupProgress, setWarmupProgress] = useState(0)
 
-  const handleSubmit = async (question) => {
-    const researchStartedAt = Date.now()
+  useEffect(() => {
+    if (warmupPhase !== 'waking' || !warmupStartedAt) {
+      setWarmupProgress(0)
+      return undefined
+    }
 
-    setError('')
-    setReport(null)
-    setCritique(null)
-    setCriticReviewing(false)
-    setProgressEntries([])
-    setStartedAt(researchStartedAt)
-    setLogsCollapsed(false)
-    setIsLoading(true)
-    setActiveStep(-1)
+    const intervalId = window.setInterval(() => {
+      const elapsed = Date.now() - warmupStartedAt
+      const nextProgress = Math.min((elapsed / WARMUP_PROGRESS_DURATION_MS) * 100, 100)
+      setWarmupProgress(nextProgress)
+    }, 200)
 
+    return () => window.clearInterval(intervalId)
+  }, [warmupPhase, warmupStartedAt])
+
+  const sleep = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms))
+
+  const checkBackend = async () => {
+    try {
+      const res = await fetch(`${BASE_URL}/health`, {
+        signal: AbortSignal.timeout(HEALTH_CHECK_TIMEOUT_MS),
+      })
+      return res.ok
+    } catch {
+      return false
+    }
+  }
+
+  const executeResearchRequest = async (question, researchStartedAt) => {
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+    const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
 
     try {
       const response = await fetch(`${BASE_URL}/research`, {
@@ -57,7 +82,6 @@ function Home() {
         throw new Error(payload?.detail || `HTTP error: ${response.status}`)
       }
 
-      // Parse Server-Sent Events from the response
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ''
@@ -69,7 +93,6 @@ function Home() {
 
         buffer += decoder.decode(value, { stream: true })
 
-        // SSE frames are delimited by a blank line.
         const frames = buffer.split('\n\n')
         buffer = frames.pop() || ''
 
@@ -146,6 +169,59 @@ function Home() {
           }
         }
       }
+    } finally {
+      window.clearTimeout(timeoutId)
+    }
+  }
+
+  const handleSubmit = async (question) => {
+    const researchStartedAt = Date.now()
+
+    setError('')
+    setReport(null)
+    setCritique(null)
+    setCriticReviewing(false)
+    setProgressEntries([])
+    setStartedAt(researchStartedAt)
+    setLogsCollapsed(false)
+    setIsLoading(true)
+    setActiveStep(-1)
+    setBackendStatus('sleeping')
+    setWarmupBannerVisible(false)
+    setWarmupPhase('idle')
+    setWarmupStartedAt(null)
+    setWarmupProgress(0)
+
+    try {
+      const backendAwake = await checkBackend()
+
+      if (!backendAwake) {
+        setBackendStatus('waking')
+        setWarmupPhase('waking')
+        setWarmupBannerVisible(true)
+        setWarmupStartedAt(Date.now())
+
+        let backendReady = false
+        while (!backendReady) {
+          await sleep(HEALTH_POLL_INTERVAL_MS)
+          backendReady = await checkBackend()
+        }
+
+        setBackendStatus('ready')
+        setWarmupPhase('ready')
+        setWarmupProgress(100)
+        await sleep(WARMUP_READY_MESSAGE_MS)
+        setWarmupBannerVisible(false)
+        await sleep(250)
+      } else {
+        setBackendStatus('ready')
+      }
+
+      setWarmupPhase('idle')
+      setWarmupStartedAt(null)
+      setWarmupProgress(0)
+
+      await executeResearchRequest(question, researchStartedAt)
     } catch (submitError) {
       if (submitError.name === 'AbortError') {
         setError('Research request timed out. Please retry or reduce the question scope.')
@@ -153,7 +229,10 @@ function Home() {
         setError(submitError.message || 'Research failed. Please try again.')
       }
     } finally {
-      clearTimeout(timeoutId)
+      setWarmupBannerVisible(false)
+      setWarmupPhase('idle')
+      setWarmupStartedAt(null)
+      setWarmupProgress(0)
       setIsLoading(false)
     }
   }
@@ -168,6 +247,11 @@ function Home() {
     setProgressEntries([])
     setStartedAt(null)
     setLogsCollapsed(false)
+    setBackendStatus('sleeping')
+    setWarmupBannerVisible(false)
+    setWarmupPhase('idle')
+    setWarmupStartedAt(null)
+    setWarmupProgress(0)
   }
 
   const hasResult = report !== null
@@ -184,7 +268,16 @@ function Home() {
 
         {!hasResult && (
           <div className="flex flex-col gap-4 sm:gap-6 animate-fade-in transition-all duration-500">
-            <InputPanel onSubmit={handleSubmit} isLoading={isLoading} />
+            <InputPanel
+              onSubmit={handleSubmit}
+              isLoading={isLoading}
+              isPreparingBackend={warmupPhase !== 'idle'}
+              warmupBanner={{
+                visible: warmupBannerVisible,
+                phase: warmupPhase,
+                progress: warmupProgress,
+              }}
+            />
             {error && (
               <div className="bg-red-950/60 border border-red-500/50 rounded-xl px-4 py-3 text-red-200 transition-opacity duration-500">
                 {error}
@@ -200,7 +293,7 @@ function Home() {
                   onToggle={() => {}}
                 />
                 <div className="bg-slate-900 border border-slate-700 rounded-2xl px-3 sm:px-6 py-3 sm:py-4 transition-all duration-500">
-                  <SwarmVisualizer activeStep={activeStep} />
+                  <SwarmVisualizer activeStep={activeStep} backendStatus={backendStatus} />
                 </div>
               </div>
             )}

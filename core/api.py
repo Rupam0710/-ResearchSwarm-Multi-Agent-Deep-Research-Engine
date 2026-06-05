@@ -29,6 +29,11 @@ app.add_middleware(
 )
 
 
+@app.on_event("startup")
+async def log_startup_ready() -> None:
+    print("🔥 ResearchSwarm API is warm and ready")
+
+
 # Request/Response Models
 class ResearchRequest(BaseModel):
     question: str
@@ -51,9 +56,9 @@ class HealthResponse(BaseModel):
 
 # Health Check Endpoint
 @app.get("/health", response_model=HealthResponse)
-async def health_check():
+def health_check() -> HealthResponse:
     """Health check endpoint to verify API is running."""
-    return {"status": "ok"}
+    return HealthResponse(status="ok")
 
 
 # Research Endpoint with Streaming Response
