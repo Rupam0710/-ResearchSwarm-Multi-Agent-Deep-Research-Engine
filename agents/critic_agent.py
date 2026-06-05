@@ -29,7 +29,7 @@ def _normalize_output(parsed: Dict[str, Any]) -> Dict[str, Any]:
     except (TypeError, ValueError):
         normalized_confidence = 0
 
-    normalized_confidence = max(0, min(10, normalized_confidence))
+    normalized_confidence = max(-1, min(10, normalized_confidence))
 
     return {
         "flagged_claims": normalized_flagged_claims,
@@ -48,54 +48,70 @@ def critique_report(report_markdown: str) -> Dict[str, Any]:
         Dict with keys:
         - flagged_claims: list[str]
         - gaps: list[str]
-        - confidence_score: int in range 0-10
+        - confidence_score: int in range 0-10 (or -1 on parse failure)
     """
     if not report_markdown.strip():
         raise ValueError("report_markdown must be a non-empty string")
 
     prompt = (
-        "You are a strict research quality critic. "
-        "Analyze the provided markdown report and return a concise structured critique.\n\n"
-        "Tasks:\n"
-        "1) Identify claims that appear unsupported, weakly supported, or potentially hallucinated.\n"
-        "2) Identify important topic gaps that are not covered but should likely be covered.\n"
-        "3) Provide a confidence score from 0 to 10 indicating your confidence in this critique.\n\n"
-        "Output rules (strict):\n"
-        "- Return ONLY valid JSON.\n"
-        "- Return a single JSON object with EXACTLY these keys: flagged_claims, gaps, confidence_score.\n"
-        "- flagged_claims must be an array of strings.\n"
-        "- gaps must be an array of strings.\n"
-        "- confidence_score must be an integer from 0 to 10.\n"
-        "- No markdown, no code fences, no extra text.\n\n"
-        f"Markdown report:\n{report_markdown}"
+        "You are a research quality critic. Analyze the report below and return "
+        "ONLY a valid JSON object with exactly these keys:\n"
+        '- "flagged_claims": list of strings (claims that seem unsupported or hallucinated)\n'
+        '- "gaps": list of strings (important topics not covered)\n'
+        '- "confidence_score": integer between 0 and 10 rating the QUALITY OF THE REPORT '
+        "based on these criteria:\n"
+        "    0-3: Poor — many unsupported claims, major gaps, weak sources\n"
+        "    4-6: Average — some gaps, mixed source quality\n"
+        "    7-8: Good — mostly supported, minor gaps\n"
+        "    9-10: Excellent — well sourced, comprehensive, no major gaps\n\n"
+        "Return ONLY the JSON. No explanation. No markdown. No backticks.\n\n"
+        f"Report to analyze:\n{report_markdown}"
     )
 
     response = powerful_llm.invoke(prompt)
-    content = (response.content or "").strip()  # type: ignore
+    raw_content = (response.content or "").strip()  # type: ignore
+
+    print(f"[critic_agent] Raw LLM output:\n{raw_content}\n")
+
+    # Strip markdown code fences if the model wrapped the JSON
+    content = raw_content
+    if content.startswith("```"):
+        content = content.split("```", 2)[-1] if content.count("```") >= 2 else content
+        # Remove leading language tag (e.g. "json\n")
+        if "\n" in content:
+            first_line, rest = content.split("\n", 1)
+            if first_line.strip().isalpha():
+                content = rest
+        content = content.rstrip("`").strip()
 
     try:
         parsed = json.loads(content)
         if isinstance(parsed, dict):
-            return _normalize_output(parsed)
+            result = _normalize_output(parsed)
+            print(f"[critic_agent] Parsed confidence_score: {result['confidence_score']}")
+            return result
     except json.JSONDecodeError:
         pass
 
-    # Best-effort fallback when the model wraps JSON in prose.
-    start = content.find("{")
-    end = content.rfind("}")
+    # Best-effort fallback: extract outermost {...} from the raw response
+    start = raw_content.find("{")
+    end = raw_content.rfind("}")
     if start != -1 and end != -1 and end > start:
-        maybe_json = content[start : end + 1]
+        maybe_json = raw_content[start : end + 1]
         try:
             parsed = json.loads(maybe_json)
             if isinstance(parsed, dict):
-                return _normalize_output(parsed)
+                result = _normalize_output(parsed)
+                print(f"[critic_agent] Parsed confidence_score (fallback): {result['confidence_score']}")
+                return result
         except json.JSONDecodeError:
             pass
 
+    print(f"[critic_agent] ERROR: Failed to parse LLM output. Raw response was:\n{raw_content}")
     return {
-        "flagged_claims": [],
-        "gaps": ["Unable to parse model critique output."],
-        "confidence_score": 0,
+        "flagged_claims": ["Critic parse error"],
+        "gaps": [],
+        "confidence_score": -1,
     }
 
 
