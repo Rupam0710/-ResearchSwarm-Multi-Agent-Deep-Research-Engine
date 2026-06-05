@@ -23,10 +23,9 @@ app = FastAPI(title="ResearchSwarm API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
-    allow_credentials=True,
+    allow_origins=["*"],
     allow_methods=["*"],
-    allow_headers=["Content-Type", "Cache-Control"],
+    allow_headers=["*"],
 )
 
 
