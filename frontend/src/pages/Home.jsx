@@ -5,6 +5,7 @@ import SwarmVisualizer from '../components/SwarmVisualizer'
 import ReportViewer from '../components/ReportViewer'
 
 const REQUEST_TIMEOUT_MS = 300000 // 5 minutes total for the entire stream
+const BASE_URL = import.meta.env.VITE_API_URL || ''
 
 const AGENT_STEP_INDEX = {
   planner: 0,
@@ -42,7 +43,7 @@ function Home() {
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
 
     try {
-      const response = await fetch('/api/research', {
+      const response = await fetch(`${BASE_URL}/research`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
