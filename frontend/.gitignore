@@ -1,0 +1,15 @@
+.DS_Store
+*.local
+dist/
+dist-ssr/
+coverage/
+*.log
+node_modules/
+.env
+.env.local
+.env.*.local
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
