@@ -11,52 +11,30 @@ Instead of one-shot generation, ResearchSwarm splits work across focused stages:
 
 The backend now includes rich, colored console logs for each agent and a final workflow summary banner.
 
-## Architecture (ASCII)
+## Architecture
 
-```text
-								 +----------------------+
-								 |   User Question      |
-								 +----------+-----------+
-														|
-														v
-									 +--------+--------+
-									 |   Planner 🧠    |
-									 +--------+--------+
-														|
-														v
-									 +--------+--------+
-									 | Search Agents 🔎 |
-									 | (parallel web)   |
-									 +--------+--------+
-														|
-														v
-									 +--------+--------+
-									 | Reader Agents 📚 |
-									 | (parallel parse) |
-									 +--------+--------+
-														|
-														v
-									 +--------+--------+
-									 | Synthesis ✍️    |
-									 +--------+--------+
-														|
-														v
-									 +--------+--------+
-									 |  Critic 🛡️      |
-									 +--------+--------+
-														|
-						 +--------------+--------------+
-						 | Report + Critique + Summary |
-						 +-----------------------------+
-```
+![ResearchSwarm Architecture](./researchswarm_architecture.svg)
+*Multi-agent pipeline: Planner → Search → Reader → Synthesis → Critic.*
 
-## Screenshot
+## Screenshots
 
-Placeholder:
+### Home — Launch Interface
+![ResearchSwarm Home](./homepage.png)
+*Enter your research question and launch the multi-agent swarm.*
 
-```text
-[ Add screenshot here: frontend home + report view ]
-```
+### Live Swarm Feed — Agents Running
+![Live Agents Swarm Feed](./live-agents swarm feed.png)
+*Parallel Search and Reader agents reporting status in real time.*
+
+### Research Report — Page 1
+![Summary Page 1](./summary-page-1.png)
+*Synthesized markdown report with citations, streamed as soon as Synthesis completes.*
+
+### Research Report — Page 2
+![Summary Page 2](./summary-page-2.png)
+*Continued report output with conclusions and source references.*
+
+---
 
 ## Prerequisites
 
